@@ -2,121 +2,124 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>App de Gestión de Planos - ARBA</title>
+  <title>Sistema de Gestión de Planos</title>
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; margin: 0; padding: 20px; display: flex; gap: 20px; }
-    .column { flex: 1; display: flex; flex-direction: column; gap: 15px; }
-    .card { background: white; padding: 20px; border-radius: 10px; shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #3b82f6; }
-    h3 { margin-top: 0; font-size: 16px; color: #1d4ed8; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; padding: 20px; }
+    .container { max-width: 800px; margin: auto; }
+    .card { background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 12px; margin-bottom: 15px; }
     
-    label { font-size: 11px; font-weight: bold; color: #64748b; display: block; margin-bottom: 4px; }
-    input, select, textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; margin-bottom: 10px; box-sizing: border-box; }
+    /* Botones Principales */
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .btn-main { background: #3b82f6; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.3s; }
+    .btn-main:hover { background: #2563eb; transform: translateY(-2px); }
+    .btn-main.active { background: #1d4ed8; border: 2px solid #60a5fa; }
+
+    /* Secciones ocultas */
+    .section { display: none; animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    label { font-size: 11px; color: #94a3b8; display: block; margin: 10px 0 5px; text-transform: uppercase; }
+    input, select { width: 100%; padding: 10px; background: #0f172a; color: #38bdf8; border: 1px solid #475569; border-radius: 6px; box-sizing: border-box; }
     
-    .btn { padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s; }
-    .btn-save { background: #2563eb; color: white; }
-    .btn-import { background: #10b981; color: white; margin-top: 5px; }
+    .btn-action { background: #10b981; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; margin-top: 15px; cursor: pointer; font-weight: bold; }
     
-    .list-container { max-height: 400px; overflow-y: auto; font-size: 13px; }
-    .plano-item { padding: 10px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; }
-    .plano-item:hover { background: #f8fafc; }
-    .tag { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
-    .tag-blue { background: #dbeafe; color: #1e40af; }
+    .list-item { background: #0f172a; padding: 10px; border-radius: 6px; margin-top: 8px; display: flex; justify-content: space-between; border-left: 4px solid #3b82f6; }
   </style>
 </head>
 <body>
 
-  <div class="column">
-    <div class="card">
-      <h3>🆕 Carga Manual</h3>
-      <label>Partida</label>
-      <input type="text" id="partida" placeholder="055-XXXXXX-X">
-      <label>Número de Plano</label>
-      <input type="text" id="nro_plano" placeholder="PH-2026-...">
-      <label>Estado</label>
-      <select id="estado">
-        <option value="Pendiente">Pendiente</option>
-        <option value="Aprobado">Aprobado</option>
-      </select>
-      <button class="btn btn-save" id="btnSave">Guardar Plano</button>
-    </div>
-
-    <div class="card">
-      <h3>📥 Importar Datos (Excel)</h3>
-      <label>Seleccionar .xlsx o .csv</label>
-      <input type="file" id="importFile" accept=".xlsx, .xls, .csv">
-      <button class="btn btn-import" id="btnImport">Procesar Archivo</button>
-      <div id="importStatus" style="font-size: 11px; margin-top: 5px; color: #10b981;"></div>
-    </div>
+<div class="container">
+  <h2 style="color: #38bdf8; margin-top: 0;">🛠️ Panel de Control de Planos</h2>
+  
+  <div class="menu-grid">
+    <button class="btn-main" onclick="showSection('manual')">➕ CARGA MANUAL</button>
+    <button class="btn-main" onclick="showSection('import')">📥 IMPORTAR EXCEL</button>
   </div>
 
-  <div class="column">
-    <div class="card" style="border-top-color: #10b981;">
-      <h3>📋 Listado de Planos Existentes</h3>
-      <div class="list-container" id="planoList">
-        Cargando registros...
-      </div>
-    </div>
+  <div id="sec-manual" class="section card">
+    <h3>Nueva Entrada Manual</h3>
+    <label>Número de Partida</label>
+    <input type="text" id="partida" placeholder="Ej: 055-123456">
+    <label>Número de Plano</label>
+    <input type="text" id="nro_plano" placeholder="PH-2026-X">
+    <label>Estado del Trámite</label>
+    <select id="estado">
+      <option value="Pendiente">Pendiente de Visación</option>
+      <option value="Aprobado">Aprobado</option>
+      <option value="Observado">Observado</option>
+    </select>
+    <button class="btn-action" onclick="saveManual()">Guardar Registro</button>
   </div>
+
+  <div id="sec-import" class="section card">
+    <h3>Importador Masivo</h3>
+    <p style="font-size: 12px; color: #94a3b8;">El Excel debe tener columnas llamadas: Partida, Nro_Plano, Estado.</p>
+    <input type="file" id="fileInput" accept=".xlsx, .xls">
+    <button class="btn-action" style="background: #f59e0b;" onclick="importExcel()">Comenzar Importación</button>
+  </div>
+
+  <div class="card" style="border-top: 4px solid #10b981;">
+    <h3 style="margin: 0; font-size: 14px; color: #10b981;">📋 ÚLTIMOS CARGADOS</h3>
+    <div id="log">No hay datos recientes.</div>
+  </div>
+</div>
 
 <script>
-  const TABLE_NAME = "Planos"; // Cambia esto al nombre exacto de tu tabla en Grist
   grist.ready({ requiredAccess: 'full' });
 
-  // 1. CARGA MANUAL
-  document.getElementById('btnSave').onclick = async () => {
-    const data = {
-      Partida: document.getElementById('partida').value,
-      Nro_Plano: document.getElementById('nro_plano').value,
-      Estado: document.getElementById('estado').value,
-      Fecha: new Date().toISOString()
-    };
-    try {
-      await grist.docApi.addRecords(TABLE_NAME, [data]);
-      alert("Guardado correctamente");
-      document.querySelectorAll('input[type="text"]').forEach(i => i.value = "");
-    } catch (e) { alert("Error: " + e.message); }
-  };
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    document.getElementById('sec-' + id).style.display = 'block';
+  }
 
-  // 2. IMPORTACIÓN MASIVA
-  document.getElementById('btnImport').onclick = async () => {
-    const file = document.getElementById('importFile').files[0];
-    if (!file) return alert("Selecciona un archivo primero");
+  async function saveManual() {
+    try {
+      const table = await grist.getTable();
+      const data = {
+        Partida: document.getElementById('partida').value,
+        Nro_Plano: document.getElementById('nro_plano').value,
+        Estado: document.getElementById('estado').value
+      };
+      await table.create(data);
+      alert("¡Guardado!");
+      resetForm();
+    } catch (e) { alert("Error: Asegúrate de que las columnas existan en Grist."); }
+  }
+
+  async function importExcel() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) return alert("Selecciona un archivo");
     
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet);
-      
+      const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
       try {
-        await grist.docApi.addRecords(TABLE_NAME, json);
-        document.getElementById('importStatus').innerText = `✅ Se importaron ${json.length} filas.`;
-      } catch (err) { alert("Error al importar: " + err.message); }
+        const table = await grist.getTable();
+        await table.create(json);
+        alert(`Éxito: ${json.length} registros importados.`);
+      } catch (err) { alert("Error: " + err.message); }
     };
     reader.readAsArrayBuffer(file);
-  };
+  }
 
-  // 3. VISUALIZACIÓN EN TIEMPO REAL
-  grist.onRecords((records) => {
-    const list = document.getElementById('planoList');
-    if (records.length === 0) {
-      list.innerHTML = "No hay registros cargados.";
-      return;
-    }
-    list.innerHTML = records.map(r => `
-      <div class="plano-item">
-        <div>
-          <b>${r.Partida || 'S/P'}</b><br>
-          <span style="color: #64748b">${r.Nro_Plano || 'Sin Nro'}</span>
-        </div>
-        <span class="tag tag-blue">${r.Estado}</span>
+  // Escuchar cambios en la tabla para mostrar el listado
+  grist.onRecords(records => {
+    const log = document.getElementById('log');
+    if (records.length === 0) return;
+    log.innerHTML = records.slice(-5).map(r => `
+      <div class="list-item">
+        <span><b>${r.Partida || '---'}</b></span>
+        <span style="color: #10b981;">${r.Estado || 'S/E'}</span>
       </div>
     `).reverse().join('');
   });
-</script>
 
+  function resetForm() {
+    document.querySelectorAll('input[type="text"]').forEach(i => i.value = "");
+  }
+</script>
 </body>
 </html>
