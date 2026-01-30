@@ -2,69 +2,147 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>App Planos - Diagnóstico</title>
+  <title>Gestión de Planos PBA - Final</title>
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; padding: 20px; }
-    .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; }
-    input { width: 100%; padding: 10px; margin: 10px 0; background: #0f172a; color: #38bdf8; border: 1px solid #475569; border-radius: 6px; }
-    .btn-action { background: #10b981; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; cursor: pointer; font-weight: bold; }
-    .debug-info { font-size: 10px; color: #94a3b8; margin-top: 15px; border-top: 1px solid #334155; padding-top: 10px; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; padding: 20px; margin: 0; }
+    .container { max-width: 700px; margin: auto; }
+    .card { background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 12px; margin-bottom: 15px; }
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .btn-main { background: #3b82f6; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; }
+    .btn-main:hover { background: #2563eb; transform: translateY(-2px); transition: 0.2s; }
+    .section { display: none; animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    label { font-size: 11px; color: #94a3b8; display: block; margin: 10px 0 5px; text-transform: uppercase; }
+    input, select { width: 100%; padding: 10px; background: #0f172a; color: #38bdf8; border: 1px solid #475569; border-radius: 6px; box-sizing: border-box; }
+    .btn-action { background: #10b981; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; margin-top: 15px; cursor: pointer; font-weight: bold; }
+    .list-item { background: #0f172a; padding: 10px; border-radius: 6px; margin-top: 8px; display: flex; justify-content: space-between; border-left: 4px solid #3b82f6; font-size: 13px; }
+    .debug-msg { font-size: 10px; color: #64748b; margin-top: 10px; text-align: center; }
   </style>
 </head>
 <body>
 
-<div class="card">
-  <h3>Carga de Plano</h3>
-  <input type="text" id="partida" placeholder="Partida">
-  <input type="text" id="nro_plano" placeholder="Nro Plano">
-  <button class="btn-action" onclick="saveManual()">Probar Guardado</button>
+<div class="container">
+  <h2 style="color: #38bdf8; text-align: center;">🏛️ Digitalización de Planos - PBA</h2>
   
-  <div class="debug-info" id="debug">Detectando columnas de Grist...</div>
+  <div class="menu-grid">
+    <button class="btn-main" onclick="showSection('manual')">➕ NUEVA CARGA</button>
+    <button class="btn-main" onclick="showSection('import')" style="background: #8b5cf6;">📥 SUBIR EXCEL</button>
+  </div>
+
+  <div id="sec-manual" class="section card">
+    <h3 style="margin-top:0">Carga Manual</h3>
+    <label>Número de Partida</label>
+    <input type="text" id="partida" placeholder="Ej: 055-123456">
+    <label>Número de Plano</label>
+    <input type="text" id="nro_plano" placeholder="PH-2026-X">
+    <label>Estado</label>
+    <select id="estado">
+      <option value="Pendiente">Pendiente</option>
+      <option value="Aprobado">Aprobado</option>
+      <option value="Observado">Observado</option>
+    </select>
+    <button class="btn-action" onclick="saveManual()">Guardar Registro</button>
+  </div>
+
+  <div id="sec-import" class="section card">
+    <h3 style="margin-top:0">Importar Archivo</h3>
+    <p style="font-size: 12px; color: #94a3b8;">Los encabezados deben ser: <b>Partida, Nro_Plano, Estado</b>.</p>
+    <input type="file" id="fileInput" accept=".xlsx, .xls">
+    <button class="btn-action" style="background: #f59e0b;" onclick="importExcel()">Importar Filas</button>
+  </div>
+
+  <div class="card" style="border-top: 4px solid #10b981;">
+    <h3 style="margin: 0; font-size: 14px; color: #10b981;">📋 ÚLTIMOS MOVIMIENTOS</h3>
+    <div id="log">Cargando datos de la tabla...</div>
+    <div id="debug" class="debug-msg"></div>
+  </div>
 </div>
 
 <script>
-  // Iniciamos con acceso completo
-  grist.ready({ requiredAccess: 'full' }); 
+  // Inicialización con acceso total
+  grist.ready({ requiredAccess: 'full' });
 
-  // Esta función nos dirá qué ve el widget realmente
-  grist.on('message', (msg) => {
-    if (msg.tableId) {
-      document.getElementById('debug').innerText = "Conectado a tabla: " + msg.tableId;
-    }
-  });
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    document.getElementById('sec-' + id).style.display = 'block';
+  }
 
+  // FUNCIÓN DE GUARDADO CON LÓGICA DE COMPATIBILIDAD
   async function saveManual() {
+    const p = document.getElementById('partida').value.trim();
+    const n = document.getElementById('nro_plano').value.trim();
+    const e = document.getElementById('estado').value;
+
+    if (!p) return alert("Ingresa la partida obligatoriamente.");
+
     try {
       const table = await grist.getTable();
-      const colInfo = await grist.docApi.getColumns(table.tableId);
       
-      // Mostramos en consola los IDs reales para que los veas
-      console.log("IDs Detectados:", colInfo.map(c => c.id));
-
-      const data = {
-        // Probamos sin el $ primero, ya que getTable suele normalizarlo
-        "Partida": document.getElementById('partida').value,
-        "Nro_Plano": document.getElementById('nro_plano').value
-      };
-
-      await table.create(data);
-      alert("✅ ¡Enviado! Revisa si ahora se ve el dato.");
-    } catch (e) {
-      // Si falla, intentamos con el símbolo $ explícito
+      // Intento 1: Sin el símbolo de pesos (Formatos nuevos)
+      await table.create({
+        "Partida": p,
+        "Nro_Plano": n,
+        "Estado": e
+      });
+      
+      finalizarGuardado();
+    } catch (err) {
+      // Intento 2: Con el símbolo de pesos (Si Grist lo fuerza)
       try {
         const table = await grist.getTable();
-        const dataDollar = {
-          "$Partida": document.getElementById('partida').value,
-          "$Nro_Plano": document.getElementById('nro_plano').value
-        };
-        await table.create(dataDollar);
-        alert("✅ Enviado con formato $");
+        await table.create({
+          "$Partida": p,
+          "$Nro_Plano": n,
+          "$Estado": e
+        });
+        finalizarGuardado();
       } catch (err2) {
-        alert("Error Final: " + err2.message);
+        alert("Error persistente: " + err2.message);
+        console.error("Fallo total de guardado:", err2);
       }
     }
   }
+
+  function finalizarGuardado() {
+    alert("✅ Registro guardado y visible en la tabla.");
+    document.querySelectorAll('input').forEach(i => i.value = "");
+  }
+
+  // IMPORTACIÓN DE EXCEL
+  async function importExcel() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) return alert("Selecciona un archivo");
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const workbook = XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
+      const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+      try {
+        const table = await grist.getTable();
+        await table.create(json);
+        alert(`Éxito: Se cargaron ${json.length} filas.`);
+      } catch (err) { alert("Error al importar Excel: " + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // VISUALIZADOR DE REGISTROS
+  grist.onRecords(records => {
+    const log = document.getElementById('log');
+    if (!records || records.length === 0) {
+      log.innerHTML = "No hay datos en la tabla 'Planos'.";
+      return;
+    }
+    const lastOnes = records.slice(-5).reverse();
+    log.innerHTML = lastOnes.map(r => `
+      <div class="list-item">
+        <span><b>${r.Partida || r.$Partida || 'S/P'}</b></span>
+        <span style="color:#10b981">${r.Estado || r.$Estado || 'S/E'}</span>
+      </div>
+    `).join('');
+  });
 </script>
 </body>
 </html>
