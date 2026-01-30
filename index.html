@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Grist Formula Builder Pro</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; padding: 15px; margin: 0; }
+    .card { background: #1e293b; border: 1px solid #334155; padding: 15px; border-radius: 8px; }
+    select { 
+      width: 100%; padding: 10px; background: #0f172a; color: #38bdf8; 
+      border: 1px solid #475569; border-radius: 6px; margin-bottom: 12px; font-weight: bold; cursor: pointer;
+    }
+    .selection-info { font-size: 11px; color: #94a3b8; margin-bottom: 10px; background: #020617; padding: 5px; border-radius: 4px; }
+    .formula-output { 
+      background: #020617; color: #10b981; padding: 15px; border-radius: 6px; 
+      font-family: 'Courier New', monospace; font-size: 13px; word-break: break-all; border: 1px solid #10b981; min-height: 40px;
+    }
+    .btn-copy { 
+      width: 100%; margin-top: 10px; padding: 10px; background: #f59e0b; 
+      color: #020617; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
+    }
+    .btn-copy:hover { background: #d97706; }
+    label { font-size: 12px; display: block; margin-bottom: 5px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+    .footer { font-size: 10px; color: #475569; margin-top: 15px; text-align: center; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <label>1. Elige la operación:</label>
+  <select id="formulaSelect">
+    <optgroup label="Matemáticas y Lógica">
+      <option value="SUM">SUMA (A + B)</option>
+      <option value="PROD">MULTIPLICACIÓN (A * B)</option>
+      <option value="IF">CONDICIONAL (Si A entonces B)</option>
+    </optgroup>
+    <optgroup label="Administrativas Argentinas">
+      <option value="CUIT">VALIDAR CUIT/CUIL (Retorna Verdadero/Falso)</option>
+      <option value="FORMAT_CUIT">FORMATEAR CUIT (Agrega guiones)</option>
+    </optgroup>
+    <optgroup label="Fechas">
+      <option value="DAYS_DIFF">DIFERENCIA DE DÍAS (Fecha B - Fecha A)</option>
+      <option value="IS_OVERDUE">¿ESTÁ VENCIDO? (Fecha vs Hoy)</option>
+    </optgroup>
+    <optgroup label="Búsquedas">
+      <option value="LOOKUP">LOOKUP (Traer dato de otra tabla)</option>
+    </optgroup>
+  </select>
+
+  <div class="selection-info" id="selectionInfo">⚠️ Toca dos celdas en tu tabla...</div>
+  
+  <label>2. Fórmula Generada (Python):</label>
+  <div class="formula-output" id="formulaResult">Selecciona celdas para armar la fórmula</div>
+  
+  <button class="btn-copy" id="copyBtn">Copiar al Portapapeles</button>
+  <div class="footer">Detecta automáticamente nombres de columnas de Grist</div>
+</div>
+
+<script>
+  let selectedCols = [];
+  const info = document.getElementById('selectionInfo');
+  const result = document.getElementById('formulaResult');
+  const selector = document.getElementById('formulaSelect');
+
+  grist.ready({ requiredAccess: 'full' });
+
+  // Captura de clics en la tabla de Grist
+  grist.on('cursorPos', (pos) => {
+    grist.docApi.getColumns(pos.tableId).then(cols => {
+      const col = cols.find(c => c.id === pos.columnId || c.colId === pos.columnId);
+      const colId = col ? col.id : null;
+      
+      if (colId && selectedCols[selectedCols.length - 1] !== colId) {
+        if (selectedCols.length >= 2) selectedCols.shift();
+        selectedCols.push(colId);
+        renderFormula();
+      }
+    });
+  });
+
+  function renderFormula() {
+    const op = selector.value;
+    const c1 = selectedCols[0] ? `$${selectedCols[0]}` : "Columna_A";
+    const c2 = selectedCols[1] ? `$${selectedCols[1]}` : "Columna_B";
+    
+    info.innerText = `Selección activa: ${selectedCols.join(' | ')}`;
+
+    let f = "";
+    // Sintaxis optimizada para Python en Grist
+    switch(op) {
+      case "SUM": f = `SUM([${c1}, ${c2}])`; break;
+      case "PROD": f = `${c1} * ${c2}`; break;
+      case "IF": f = `IF(${c1} > 0, ${c2}, "Sin Valor")`; break;
+      case "DAYS_DIFF": f = `(${c2} - ${c1}).days`; break;
+      case "IS_OVERDUE": f = `${c1} < TODAY()`; break;
+      case "LOOKUP": f = `Otra_Tabla.lookupRecords(ID=${c1}).${c2}`; break;
+      case "FORMAT_CUIT": f = '"{}-{}-{}".format(str({0})[:2], str({0})[2:10], str({0})[10:])'.replace(/\{0\}/g, c1); break;
+      case "CUIT": 
+        f = `# Validación de CUIT para ${c1}\n` +
+            `def validar():\n` +
+            `  c = str(${c1}).replace("-","")\n` +
+            `  if len(c) != 11: return False\n` +
+            `  m = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]\n` +
+            `  s = sum(int(c[i]) * m[i] for i in range(10))\n` +
+            `  v = 11 - (s % 11)\n` +
+            `  if v == 11: v = 0\n` +
+            `  if v == 10: v = 9\n` +
+            `  return v == int(c[10])\n` +
+            `return validar()`;
+        break;
+    }
+    result.innerText = f;
+  }
+
+  selector.onchange = renderFormula;
+
+  document.getElementById('copyBtn').onclick = () => {
+    navigator.clipboard.writeText(result.innerText);
+    alert("¡Fórmula copiada! Pégala en la configuración de la columna en Grist.");
+  };
+</script>
+
+</body>
+</html>
