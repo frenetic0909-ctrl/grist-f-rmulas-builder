@@ -2,160 +2,121 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Grist Master Assistant v2</title>
+  <title>App de Gestión de Planos - ARBA</title>
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; padding: 15px; margin: 0; }
-    .section-title { font-size: 11px; color: #f59e0b; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; display: block; letter-spacing: 1px; }
-    .card { background: #1e293b; border: 1px solid #334155; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; margin: 0; padding: 20px; display: flex; gap: 20px; }
+    .column { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+    .card { background: white; padding: 20px; border-radius: 10px; shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #3b82f6; }
+    h3 { margin-top: 0; font-size: 16px; color: #1d4ed8; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
     
-    /* Elementos de Interfaz */
-    select, textarea { 
-      width: 100%; padding: 10px; background: #0f172a; color: #38bdf8; 
-      border: 1px solid #475569; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; font-weight: bold;
-    }
+    label { font-size: 11px; font-weight: bold; color: #64748b; display: block; margin-bottom: 4px; }
+    input, select, textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; margin-bottom: 10px; box-sizing: border-box; }
     
-    .selection-display { background: #020617; padding: 10px; border-radius: 5px; font-size: 11px; color: #38bdf8; min-height: 20px; border: 1px dashed #334155; }
-    .formula-result { background: #020617; color: #10b981; padding: 15px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; border: 1px solid #10b981; margin-top: 10px; white-space: pre-wrap; }
+    .btn { padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s; }
+    .btn-save { background: #2563eb; color: white; }
+    .btn-import { background: #10b981; color: white; margin-top: 5px; }
     
-    .btn { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s; }
-    .btn-ai { background: #f59e0b; color: #020617; }
-    .btn-copy { background: #10b981; color: white; margin-top: 10px; }
-    .btn-reset { background: #475569; color: white; width: auto; font-size: 10px; padding: 5px 10px; margin-top: 5px; }
+    .list-container { max-height: 400px; overflow-y: auto; font-size: 13px; }
+    .plano-item { padding: 10px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; }
+    .plano-item:hover { background: #f8fafc; }
+    .tag { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .tag-blue { background: #dbeafe; color: #1e40af; }
   </style>
 </head>
 <body>
 
-  <span class="section-title">1. Selección de Columnas Técnicas</span>
-  <div class="card">
-    <div class="selection-display" id="colList">⚠️ Toca las columnas en tu tabla de Grist...</div>
-    <button class="btn-reset" onclick="resetCols()">Limpiar Selección</button>
+  <div class="column">
+    <div class="card">
+      <h3>🆕 Carga Manual</h3>
+      <label>Partida</label>
+      <input type="text" id="partida" placeholder="055-XXXXXX-X">
+      <label>Número de Plano</label>
+      <input type="text" id="nro_plano" placeholder="PH-2026-...">
+      <label>Estado</label>
+      <select id="estado">
+        <option value="Pendiente">Pendiente</option>
+        <option value="Aprobado">Aprobado</option>
+      </select>
+      <button class="btn btn-save" id="btnSave">Guardar Plano</button>
+    </div>
+
+    <div class="card">
+      <h3>📥 Importar Datos (Excel)</h3>
+      <label>Seleccionar .xlsx o .csv</label>
+      <input type="file" id="importFile" accept=".xlsx, .xls, .csv">
+      <button class="btn btn-import" id="btnImport">Procesar Archivo</button>
+      <div id="importStatus" style="font-size: 11px; margin-top: 5px; color: #10b981;"></div>
+    </div>
   </div>
 
-  <span class="section-title">2. Constructor de Fórmulas Rápidas</span>
-  <div class="card">
-    <select id="opSelect">
-      <option value="">-- Elige una operación automática --</option>
-      <optgroup label="Matemáticas">
-        <option value="SUM">SUMAR SELECCIONADAS (A + B + ...)</option>
-        <option value="PROD">MULTIPLICAR (A * B)</option>
-      </optgroup>
-      <optgroup label="Administrativo / CUIT">
-        <option value="CUIT">VALIDAR CUIT/CUIL (Algoritmo)</option>
-        <option value="FORMAT_CUIT">AGREGAR GUIONES A CUIT</option>
-      </optgroup>
-      <optgroup label="Fechas">
-        <option value="DAYS_DIFF">DIFERENCIA EN DÍAS (Fecha B - Fecha A)</option>
-        <option value="TODAY_DIFF">DÍAS HASTA HOY (A vs Hoy)</option>
-      </optgroup>
-      <optgroup label="Tablas / Relaciones">
-        <option value="LOOKUP">LOOKUP (Traer de otra tabla)</option>
-        <option value="SUM_TABLE">SUMA TOTAL DE OTRA TABLA</option>
-      </optgroup>
-    </select>
-  </div>
-
-  <span class="section-title">3. Asistente IA Personalizado</span>
-  <div class="card" style="border: 1px solid #f59e0b;">
-    <textarea id="aiPrompt" rows="2" placeholder="O escribe una orden específica aquí..."></textarea>
-    <button class="btn btn-ai" id="runAi">✨ Generar con IA</button>
-  </div>
-
-  <div id="resultArea" style="display:none;">
-    <span class="section-title">4. Resultado para Grist</span>
-    <div class="formula-result" id="finalFormula"></div>
-    <button class="btn btn-copy" onclick="copyFormula()">Copiar Fórmula</button>
+  <div class="column">
+    <div class="card" style="border-top-color: #10b981;">
+      <h3>📋 Listado de Planos Existentes</h3>
+      <div class="list-container" id="planoList">
+        Cargando registros...
+      </div>
+    </div>
   </div>
 
 <script>
-  let selected = [];
+  const TABLE_NAME = "Planos"; // Cambia esto al nombre exacto de tu tabla en Grist
   grist.ready({ requiredAccess: 'full' });
 
-  // Captura de Columnas
-  grist.on('cursorPos', (pos) => {
-    grist.docApi.getColumns(pos.tableId).then(cols => {
-      const col = cols.find(c => c.id === pos.columnId || c.colId === pos.columnId);
-      if (col && !selected.includes(col.id)) {
-        selected.push(col.id);
-        document.getElementById('colList').innerText = "Seleccionadas: " + selected.join(', ');
-        if(document.getElementById('opSelect').value) renderManual();
-      }
-    });
-  });
-
-  function resetCols() {
-    selected = [];
-    document.getElementById('colList').innerText = "⚠️ Toca las columnas...";
-    document.getElementById('resultArea').style.display = "none";
-    document.getElementById('opSelect').value = "";
-  }
-
-  // Lógica de Fórmulas Manuales
-  document.getElementById('opSelect').onchange = renderManual;
-  
-  function renderManual() {
-    const op = document.getElementById('opSelect').value;
-    if(!op || selected.length === 0) return;
-    
-    const area = document.getElementById('resultArea');
-    const box = document.getElementById('finalFormula');
-    const c = selected.map(s => `$${s}`);
-    
-    area.style.display = "block";
-    let f = "";
-    
-    switch(op) {
-      case "SUM": f = `SUM([${c.join(', ')}])`; break;
-      case "PROD": f = `${c[0]} * ${c[1] || '1'}`; break;
-      case "DAYS_DIFF": f = `(${c[1] || c[0]} - ${c[0]}).days`; break;
-      case "TODAY_DIFF": f = `(TODAY() - ${c[0]}).days`; break;
-      case "FORMAT_CUIT": f = '"{}-{}-{}".format(str({0})[:2], str({0})[2:10], str({0})[10:])'.replace(/\{0\}/g, c[0]); break;
-      case "LOOKUP": f = `Otra_Tabla.lookupRecords(ID=${c[0]}).${selected[1] || 'Campo'}`; break;
-      case "SUM_TABLE": f = `SUM(Otra_Tabla.lookupRecords(Relacion=${c[0]}).${selected[1] || 'Monto'})`; break;
-      case "CUIT": f = "def validar():\n  c = str("+c[0]+").replace('-','')\n  if len(c)!=11: return False\n  m=[5,4,3,2,7,6,5,4,3,2]\n  s=sum(int(c[i])*m[i] for i in range(10))\n  v=11-(s%11)\n  if v==11: v=0\n  if v==10: v=9\n  return v==int(c[10])\nreturn validar()"; break;
-    }
-    box.innerText = f;
-  }
-
-  // Asistente IA
-  document.getElementById('runAi').onclick = async () => {
-    const prompt = document.getElementById('aiPrompt').value;
-    const box = document.getElementById('finalFormula');
-    const area = document.getElementById('resultArea');
-
-    if (selected.length === 0) return alert("Selecciona columnas primero.");
-
-    let apiKey = localStorage.getItem('groq_key');
-    if (!apiKey) {
-      apiKey = window.prompt("Introduce tu Groq API Key:");
-      if (apiKey) localStorage.setItem('groq_key', apiKey);
-      else return;
-    }
-
-    area.style.display = "block";
-    box.innerText = "⏳ Generando lógica personalizada...";
-
+  // 1. CARGA MANUAL
+  document.getElementById('btnSave').onclick = async () => {
+    const data = {
+      Partida: document.getElementById('partida').value,
+      Nro_Plano: document.getElementById('nro_plano').value,
+      Estado: document.getElementById('estado').value,
+      Fecha: new Date().toISOString()
+    };
     try {
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: "Eres un experto en Grist. Responde solo con la fórmula de Python. Usa $NombreColumna." },
-            { role: "user", content: `Columnas: ${selected.join(', ')}. Tarea: ${prompt}` }
-          ]
-        })
-      });
-      const data = await response.json();
-      box.innerText = data.choices[0].message.content;
-    } catch (e) { box.innerText = "Error en la conexión."; }
+      await grist.docApi.addRecords(TABLE_NAME, [data]);
+      alert("Guardado correctamente");
+      document.querySelectorAll('input[type="text"]').forEach(i => i.value = "");
+    } catch (e) { alert("Error: " + e.message); }
   };
 
-  function copyFormula() {
-    navigator.clipboard.writeText(document.getElementById('finalFormula').innerText);
-    alert("Copiada.");
-  }
+  // 2. IMPORTACIÓN MASIVA
+  document.getElementById('btnImport').onclick = async () => {
+    const file = document.getElementById('importFile').files[0];
+    if (!file) return alert("Selecciona un archivo primero");
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet);
+      
+      try {
+        await grist.docApi.addRecords(TABLE_NAME, json);
+        document.getElementById('importStatus').innerText = `✅ Se importaron ${json.length} filas.`;
+      } catch (err) { alert("Error al importar: " + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // 3. VISUALIZACIÓN EN TIEMPO REAL
+  grist.onRecords((records) => {
+    const list = document.getElementById('planoList');
+    if (records.length === 0) {
+      list.innerHTML = "No hay registros cargados.";
+      return;
+    }
+    list.innerHTML = records.map(r => `
+      <div class="plano-item">
+        <div>
+          <b>${r.Partida || 'S/P'}</b><br>
+          <span style="color: #64748b">${r.Nro_Plano || 'Sin Nro'}</span>
+        </div>
+        <span class="tag tag-blue">${r.Estado}</span>
+      </div>
+    `).reverse().join('');
+  });
 </script>
+
 </body>
 </html>
