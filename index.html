@@ -2,70 +2,66 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <script src="https://docs.getgrist.com/grist-api.js"></script>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <style>
-    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9f9f9; }
-    button {
-      background-color: #005a8d; /* Azul institucional ARBA */
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: background 0.3s;
-    }
+    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f1f5f9; }
+    .card { text-align: center; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    button { background-color: #005a8d; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; }
     button:hover { background-color: #003d5f; }
-    button:disabled { background-color: #ccc; cursor: not-allowed; }
-    #status { position: fixed; bottom: 5px; font-size: 11px; text-align: center; width: 100%; }
+    button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+    #status { margin-top: 16px; font-size: 13px; min-height: 20px; font-weight: 500; }
   </style>
 </head>
 <body>
 
-  <button id="reloadBtn">🔄 Reiniciar Motor Python</button>
-  <div id="status"></div>
+  <div class="card">
+    <button id="reloadBtn">🔄 Reiniciar Motor Python</button>
+    <div id="status"></div>
+  </div>
 
   <script>
-    const btn = document.getElementById('reloadBtn');
-    const status = document.getElementById('status');
+    // IMPORTANTE: grist.ready asegura que la comunicación con Grist esté lista antes de actuar
+    grist.ready(() => {
+      console.log("Grist API lista");
+      const btn = document.getElementById('reloadBtn');
+      const statusDiv = document.getElementById('status');
 
-    // Inicializa la comunicación con Grist
-    grist.ready();
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        statusDiv.innerText = "⏳ Obteniendo información...";
+        statusDiv.style.color = "#475569";
 
-    btn.addEventListener('click', async () => {
-      // 1. Obtenemos el ID del documento automáticamente
-      const docId = grist.getDocId();
-      
-      btn.disabled = true;
-      status.innerText = "⏳ Procesando...";
-      status.style.color = "black";
+        try {
+          // Obtenemos los metadatos de forma asíncrona como sugería el error
+          const info = await grist.getDocPageInfo();
+          const docId = info.docId;
+          
+          statusDiv.innerText = "🚀 Enviando señal al bridge local...";
 
-      try {
-        // 2. Llamada a tu microservicio local
-        const response = await fetch('http://localhost:8000/force-reload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ doc_id: docId })
-        });
+          // Llamada a tu microservicio que ya confirmamos que funciona
+          const response = await fetch('http://localhost:8000/force-reload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doc_id: docId })
+          });
 
-        const data = await response.json();
+          const data = await response.json();
 
-        if (response.ok) {
-          status.innerText = "✅ Éxito: " + data.message;
-          status.style.color = "green";
-        } else {
-          throw new Error(data.detail || "Error en el servidor");
+          if (response.ok) {
+            statusDiv.innerText = "✅ " + data.message;
+            statusDiv.style.color = "#16a34a";
+          } else {
+            statusDiv.innerText = "❌ Error en Bridge: " + (data.detail || "Fallo desconocido");
+            statusDiv.style.color = "#dc2626";
+          }
+        } catch (error) {
+          statusDiv.innerText = "❌ Error: Verifica la consola (F12)";
+          statusDiv.style.color = "#dc2626";
+          console.error("Detalle del error:", error);
+        } finally {
+          setTimeout(() => { btn.disabled = false; }, 4000);
         }
-      } catch (err) {
-        status.innerText = "❌ Error: " + err.message;
-        status.style.color = "red";
-        console.error(err);
-      } finally {
-        setTimeout(() => {
-          btn.disabled = false;
-          status.innerText = "";
-        }, 5000);
-      }
+      });
     });
   </script>
 </body>
