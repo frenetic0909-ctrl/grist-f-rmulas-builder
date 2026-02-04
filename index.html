@@ -5,8 +5,8 @@
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <style>
     body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f1f5f9; }
-    .card { text-align: center; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); width: 200px; }
-    button { background-color: #005a8d; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.3s; }
+    .card { text-align: center; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); width: 220px; }
+    button { background-color: #005a8d; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; }
     button:hover { background-color: #003d5f; }
     button:disabled { background-color: #94a3b8; cursor: not-allowed; }
     #status { margin-top: 16px; font-size: 13px; min-height: 20px; font-weight: 500; }
@@ -20,23 +20,22 @@
   </div>
 
   <script>
-    // Inicializamos Grist y esperamos a que esté listo
+    // grist.ready es el disparador que asegura que Grist cargó su API
     grist.ready(() => {
-      console.log("Widget de Grist conectado correctamente.");
       const btn = document.getElementById('reloadBtn');
       const statusDiv = document.getElementById('status');
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
-        statusDiv.innerText = "⏳ Solicitando...";
+        statusDiv.innerText = "⏳ Conectando...";
         statusDiv.style.color = "#475569";
 
         try {
-          // Obtenemos el docId automáticamente del entorno de Grist
+          // Obtenemos el ID que ya sabemos que es 2ZnqGZ9banAVCRyooie4Sh
           const info = await grist.getDocPageInfo();
           const docId = info.docId;
 
-          // Llamada a tu microservicio que ya confirmamos que funciona
+          // Hacemos el fetch exactamente igual a como lo hace PowerShell
           const response = await fetch('http://localhost:8000/force-reload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -46,24 +45,22 @@
           const data = await response.json();
 
           if (response.ok) {
-            // MENSAJE DE ÉXITO VISUAL
-            statusDiv.innerText = "✅ Motor Reiniciado";
+            statusDiv.innerText = "✅ Éxito: " + data.message;
             statusDiv.style.color = "#16a34a";
-            console.log("Éxito:", data.message);
           } else {
             statusDiv.innerText = "❌ Error en Bridge";
             statusDiv.style.color = "#dc2626";
           }
         } catch (error) {
-          statusDiv.innerText = "❌ Error de conexión";
+          // Si entra aquí, es probable que el navegador esté bloqueando el acceso a localhost
+          statusDiv.innerText = "❌ No hay conexión con Bridge";
           statusDiv.style.color = "#dc2626";
-          console.error("Error en el widget:", error);
+          console.error("Error en Widget:", error);
         } finally {
-          // Reactivamos el botón después de 3 segundos
-          setTimeout(() => {
-            btn.disabled = false;
+          setTimeout(() => { 
+            btn.disabled = false; 
             statusDiv.innerText = "";
-          }, 3000);
+          }, 4000);
         }
       });
     });
