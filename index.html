@@ -3,56 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
-  <style>
-    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f1f5f9; }
-    .card { text-align: center; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; width: 220px; }
-    button { background-color: #005a8d; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; }
-    button:disabled { background-color: #94a3b8; cursor: not-allowed; }
-    #status { margin-top: 15px; font-size: 13px; font-weight: 500; }
-  </style>
 </head>
-<body>
-  <div class="card">
-    <button id="reloadBtn">🔄 Force Reload</button>
-    <div id="status"></div>
-  </div>
 
-  <script>
-    grist.ready(() => {
-      const btn = document.getElementById('reloadBtn');
-      const statusDiv = document.getElementById('status');
+<body style="font-family:sans-serif;text-align:center">
+  <button id="reloadBtn">🔄 Force Reload</button>
+  <div id="status"></div>
 
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        statusDiv.innerText = "⏳ Enviando...";
-        statusDiv.style.color = "#475569";
+<script>
+grist.ready(() => {
+  const btn = document.getElementById("reloadBtn");
+  const status = document.getElementById("status");
 
-        try {
-          // Captura el docId 2ZnqGZ9banAVCRyooie4Sh de forma segura
-          const info = await grist.getDocPageInfo();
-          
-          const response = await fetch('http://localhost:8000/force-reload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ doc_id: info.docId })
-          });
+  btn.onclick = async () => {
+    btn.disabled = true;
+    status.innerText = "⏳ Solicitando reload...";
 
-          if (response.ok) {
-            statusDiv.innerText = "✅ Reload Solicitado";
-            statusDiv.style.color = "#16a34a";
-          } else {
-            statusDiv.innerText = "❌ Error en Bridge";
-            statusDiv.style.color = "#dc2626";
-          }
-        } catch (error) {
-          // Si ves esto, el navegador sigue bloqueando la conexión a localhost
-          statusDiv.innerText = "❌ Bloqueo de Navegador";
-          statusDiv.style.color = "#dc2626";
-        } finally {
-          setTimeout(() => { btn.disabled = false; }, 3000);
-        }
+    try {
+      const info = await grist.getDocPageInfo();
+
+      await fetch("/_admin/force-reload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc_id: info.docId })
       });
-    });
-  </script>
+
+      status.innerText = "✅ Solicitud enviada";
+    } catch {
+      status.innerText = "❌ Error";
+    } finally {
+      btn.disabled = false;
+    }
+  };
+});
+</script>
 </body>
 </html>
