@@ -5,62 +5,51 @@
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <style>
     body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f1f5f9; }
-    .card { text-align: center; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); width: 220px; }
-    button { background-color: #005a8d; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; }
-    button:hover { background-color: #003d5f; }
+    .card { text-align: center; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; width: 220px; }
+    button { background-color: #005a8d; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; }
     button:disabled { background-color: #94a3b8; cursor: not-allowed; }
-    #status { margin-top: 16px; font-size: 13px; min-height: 20px; font-weight: 500; }
+    #status { margin-top: 15px; font-size: 13px; font-weight: 500; }
   </style>
 </head>
 <body>
-
   <div class="card">
     <button id="reloadBtn">🔄 Force Reload</button>
     <div id="status"></div>
   </div>
 
   <script>
-    // grist.ready es el disparador que asegura que Grist cargó su API
     grist.ready(() => {
       const btn = document.getElementById('reloadBtn');
       const statusDiv = document.getElementById('status');
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
-        statusDiv.innerText = "⏳ Conectando...";
+        statusDiv.innerText = "⏳ Enviando...";
         statusDiv.style.color = "#475569";
 
         try {
-          // Obtenemos el ID que ya sabemos que es 2ZnqGZ9banAVCRyooie4Sh
+          // Captura el docId 2ZnqGZ9banAVCRyooie4Sh de forma segura
           const info = await grist.getDocPageInfo();
-          const docId = info.docId;
-
-          // Hacemos el fetch exactamente igual a como lo hace PowerShell
+          
           const response = await fetch('http://localhost:8000/force-reload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ doc_id: docId })
+            body: JSON.stringify({ doc_id: info.docId })
           });
 
-          const data = await response.json();
-
           if (response.ok) {
-            statusDiv.innerText = "✅ Éxito: " + data.message;
+            statusDiv.innerText = "✅ Reload Solicitado";
             statusDiv.style.color = "#16a34a";
           } else {
             statusDiv.innerText = "❌ Error en Bridge";
             statusDiv.style.color = "#dc2626";
           }
         } catch (error) {
-          // Si entra aquí, es probable que el navegador esté bloqueando el acceso a localhost
-          statusDiv.innerText = "❌ No hay conexión con Bridge";
+          // Si ves esto, el navegador sigue bloqueando la conexión a localhost
+          statusDiv.innerText = "❌ Bloqueo de Navegador";
           statusDiv.style.color = "#dc2626";
-          console.error("Error en Widget:", error);
         } finally {
-          setTimeout(() => { 
-            btn.disabled = false; 
-            statusDiv.innerText = "";
-          }, 4000);
+          setTimeout(() => { btn.disabled = false; }, 3000);
         }
       });
     });
