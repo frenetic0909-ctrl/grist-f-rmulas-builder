@@ -27,12 +27,15 @@
 
 <script>
 grist.ready(async () => {
+  // 🔐 PASO CLAVE: permitir requests externas
+  grist.allowExternalRequests();
+
   const btn = document.getElementById("reloadBtn");
   const status = document.getElementById("status");
 
   const BASE_URL = "https://glozingly-phytographic-anika.ngrok-free.dev";
 
-  // 🔎 Health check usando grist.fetch
+  // Health check
   try {
     const health = await grist.fetch(`${BASE_URL}/health`);
     if (!health.ok) throw new Error();
@@ -47,8 +50,8 @@ grist.ready(async () => {
 
   btn.onclick = async () => {
     btn.disabled = true;
-    status.style.color = "#475569";
     status.textContent = "⏳ Enviando solicitud…";
+    status.style.color = "#475569";
 
     try {
       const info = await grist.getDocPageInfo();
