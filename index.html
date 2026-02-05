@@ -26,24 +26,24 @@
   <div id="status">Inicializando…</div>
 
 <script>
-grist.ready(() => {
+grist.ready(async () => {
   const btn = document.getElementById("reloadBtn");
   const status = document.getElementById("status");
 
   const BASE_URL = "https://glozingly-phytographic-anika.ngrok-free.dev";
 
-  // 🔎 Health check (async aislado)
-  fetch(`${BASE_URL}/health`)
-    .then(r => {
-      if (!r.ok) throw new Error();
-      status.textContent = "🟢 Bridge online";
-      status.style.color = "#16a34a";
-    })
-    .catch(() => {
-      status.textContent = "🔴 Bridge no disponible";
-      status.style.color = "#dc2626";
-      btn.disabled = true;
-    });
+  // 🔎 Health check usando grist.fetch
+  try {
+    const health = await grist.fetch(`${BASE_URL}/health`);
+    if (!health.ok) throw new Error();
+    status.textContent = "🟢 Bridge online";
+    status.style.color = "#16a34a";
+  } catch (e) {
+    console.error(e);
+    status.textContent = "🔴 Bridge no disponible";
+    status.style.color = "#dc2626";
+    return;
+  }
 
   btn.onclick = async () => {
     btn.disabled = true;
@@ -53,7 +53,7 @@ grist.ready(() => {
     try {
       const info = await grist.getDocPageInfo();
 
-      const res = await fetch(`${BASE_URL}/force-reload`, {
+      const res = await grist.fetch(`${BASE_URL}/force-reload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ doc_id: info.docId })
