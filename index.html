@@ -3,64 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      text-align: center;
+      padding: 16px;
+    }
+    button {
+      padding: 10px 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+    }
+  </style>
 </head>
 
-<body style="font-family:sans-serif;text-align:center">
+<body>
   <button id="reloadBtn">🔄 Force Reload</button>
-  <div id="status" style="margin-top:10px"></div>
+  <div id="status">Listo</div>
 
 <script>
-  const API_URL = "https://glozingly-phytographic-anika.ngrok-free.dev/force-reload";
-
-  let docId = null;
-
-  grist.ready({
-    requiredAccess: 'full'
-  });
-
-  // Obtener info del documento desde la sesión real del usuario
-  grist.docApi.getDocInfo().then(info => {
-    docId = info.id;
-    console.log("Doc ID detectado:", docId);
-  });
-
+grist.ready(async () => {
   const btn = document.getElementById("reloadBtn");
   const status = document.getElementById("status");
 
-  btn.onclick = async () => {
-    if (!docId) {
-      status.innerText = "❌ Doc ID no disponible aún";
-      return;
-    }
+  const BASE_URL = "https://glozingly-phytographic-anika.ngrok-free.dev";
 
+  // 🔎 Chequeo de salud del bridge
+  try {
+    const health = await fetch(`${BASE_URL}/health`);
+    if (!health.ok) throw new Error();
+    status.textContent = "🟢 Bridge online";
+  } catch {
+    status.textContent = "🔴 Bridge no disponible";
+    status.style.color = "#dc2626";
+    return;
+  }
+
+  btn.onclick = async () => {
     btn.disabled = true;
-    status.innerText = "⏳ Solicitando reload...";
+    status.style.color = "#475569";
+    status.textContent = "⏳ Enviando solicitud…";
 
     try {
-      const res = await fetch(API_URL, {
+      // ✅ API CORRECTA para obtener el docId
+      const info = await grist.getDocPageInfo();
+
+      const res = await fetch(`${BASE_URL}/force-reload`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          doc_id: docId
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc_id: info.docId })
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.detail || "Error desconocido");
+        const txt = await res.text();
+        throw new Error(txt);
       }
 
-      status.innerText = "✅ Motor de Python reiniciado";
-    } catch (err) {
-      console.error(err);
-      status.innerText = "❌ Error: " + err.message;
+      status.textContent = "✅ Reload solicitado correctamente";
+      status.style.color = "#16a34a";
+
+    } catch (e) {
+      console.error(e);
+      status.textContent = "❌ Error al ejecutar reload";
+      status.style.color = "#dc2626";
     } finally {
       btn.disabled = false;
     }
   };
+});
 </script>
 </body>
 </html>
