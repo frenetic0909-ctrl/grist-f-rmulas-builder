@@ -1,40 +1,66 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
 </head>
 
 <body style="font-family:sans-serif;text-align:center">
   <button id="reloadBtn">🔄 Force Reload</button>
-  <div id="status"></div>
+  <div id="status" style="margin-top:10px"></div>
 
 <script>
-grist.ready(() => {
+  const API_URL = "https://glozingly-phytographic-anika.ngrok-free.dev/force-reload";
+
+  let docId = null;
+
+  grist.ready({
+    requiredAccess: 'full'
+  });
+
+  // Obtener info del documento desde la sesión real del usuario
+  grist.docApi.getDocInfo().then(info => {
+    docId = info.id;
+    console.log("Doc ID detectado:", docId);
+  });
+
   const btn = document.getElementById("reloadBtn");
   const status = document.getElementById("status");
 
   btn.onclick = async () => {
+    if (!docId) {
+      status.innerText = "❌ Doc ID no disponible aún";
+      return;
+    }
+
     btn.disabled = true;
     status.innerText = "⏳ Solicitando reload...";
 
     try {
-      const info = await grist.getDocPageInfo();
-
-      await fetch("/_admin/force-reload", {
+      const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc_id: info.docId })
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          doc_id: docId
+        })
       });
 
-      status.innerText = "✅ Solicitud enviada";
-    } catch {
-      status.innerText = "❌ Error";
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || "Error desconocido");
+      }
+
+      status.innerText = "✅ Motor de Python reiniciado";
+    } catch (err) {
+      console.error(err);
+      status.innerText = "❌ Error: " + err.message;
     } finally {
       btn.disabled = false;
     }
   };
-});
 </script>
 </body>
 </html>
