@@ -14,10 +14,6 @@
       font-weight: bold;
       cursor: pointer;
     }
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
     #status {
       margin-top: 12px;
       font-size: 13px;
@@ -31,40 +27,42 @@
 
 <script>
 grist.ready(async () => {
+  console.log("✅ grist.ready");
 
-  // 🔓 PASO CRÍTICO: habilita interacción del widget
-  grist.onRecord(() => {});
-
-  // 🔐 Permitir requests externas
+  // 🔐 OBLIGATORIO
   grist.allowExternalRequests();
+  console.log("🔓 External requests allowed");
 
   const btn = document.getElementById("reloadBtn");
   const status = document.getElementById("status");
 
   const BASE_URL = "https://glozingly-phytographic-anika.ngrok-free.dev";
 
-  // 🩺 Health check del bridge
+  // Health check
   try {
+    console.log("🌐 Checking health...");
     const health = await grist.fetch(`${BASE_URL}/health`);
-    if (!health.ok) throw new Error();
+    console.log("Health response:", health.status);
+
     status.textContent = "🟢 Bridge online";
     status.style.color = "#16a34a";
   } catch (e) {
-    console.error(e);
+    console.error("Health error:", e);
     status.textContent = "🔴 Bridge no disponible";
     status.style.color = "#dc2626";
     return;
   }
 
-  // 🔘 Acción del botón
-  btn.addEventListener("click", async () => {
+  btn.onclick = async () => {
+    console.log("🖱️ Button clicked");
+
     btn.disabled = true;
     status.textContent = "⏳ Enviando solicitud…";
     status.style.color = "#475569";
 
     try {
-      // ✅ API correcta para obtener el docId
       const info = await grist.getDocPageInfo();
+      console.log("📄 Doc info:", info);
 
       const res = await grist.fetch(`${BASE_URL}/force-reload`, {
         method: "POST",
@@ -72,22 +70,24 @@ grist.ready(async () => {
         body: JSON.stringify({ doc_id: info.docId })
       });
 
+      console.log("POST response:", res.status);
+
       if (!res.ok) {
         const txt = await res.text();
         throw new Error(txt);
       }
 
-      status.textContent = "✅ Reload solicitado correctamente";
+      status.textContent = "✅ Reload solicitado";
       status.style.color = "#16a34a";
 
     } catch (e) {
-      console.error(e);
+      console.error("POST error:", e);
       status.textContent = "❌ Error al ejecutar reload";
       status.style.color = "#dc2626";
     } finally {
       btn.disabled = false;
     }
-  });
+  };
 });
 </script>
 </body>
